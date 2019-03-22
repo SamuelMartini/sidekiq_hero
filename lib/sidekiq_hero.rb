@@ -4,6 +4,7 @@ require 'sidekiq_hero/version'
 require 'sidekiq/api'
 require 'sidekiq_hero/configuration'
 require 'sidekiq_hero/notifier'
+require 'sidekiq_hero/recorder'
 
 module SidekiqHero
   class << self
