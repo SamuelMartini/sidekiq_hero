@@ -1,9 +1,9 @@
-RSpec.describe SidekiqHero do
-  it "has a version number" do
-    expect(SidekiqHero::VERSION).not_to be nil
-  end
+# frozen_string_literal: true
 
-  it "does something useful" do
-    expect(false).to eq(true)
+RSpec.describe SidekiqHero do
+  describe '.configuration' do
+    it 'returns an instance of Configuration' do
+      expect(described_class.configuration).to be_kind_of(SidekiqHero::Configuration)
+    end
   end
 end
