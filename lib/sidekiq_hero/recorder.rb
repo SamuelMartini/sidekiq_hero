@@ -8,13 +8,31 @@ module SidekiqHero
       @meta_data = {}
     end
 
-    def record(hash)
-      meta_data.merge!(hash)
-    end
-
-    def record_elapsed_time
+    def elapsed_time
       total = meta_data.fetch(:ended_at, 0) - meta_data.fetch(:started_at, 0)
       record(total_time: total)
+    end
+
+    def worker_passed
+      record(status: 'passed', started_at: Time.now.utc.round)
+    end
+
+    def worker_succeeded
+      record(status: 'success')
+    end
+
+    def worker_failed(error)
+      record(status: 'failed', error: error.to_s)
+    end
+
+    def worker_ended
+      record(ended_at: Time.now.utc.round)
+    end
+
+    private
+
+    def record(hash)
+      meta_data.merge!(hash)
     end
   end
 end
