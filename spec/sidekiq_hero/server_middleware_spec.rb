@@ -1,113 +1,67 @@
 # frozen_string_literal: true
 
 RSpec.describe SidekiqHero::ServerMiddleware do
-  let(:job) do
-    {
-      'class': 'SomeWorker',
-      'jid': 'b4a577edbccf1d805744efa9',
-      'args': [1, 'arg', true],
-      'created_at': 123_456_789_0,
-      'enqueued_at': 123_456_789_0
-    }
-  end
-  let(:notifier) { instance_double('SidekiqHero::Notifier') }
+  let(:job) { 'test' }
+  let(:recorder) { instance_double('SidekiqHero::Recorder') }
+  let(:meta_data_test) { { meta_data: 'test' } }
+  let(:notifier) { double('notifier') }
+  let(:error_message) { RuntimeError.new('error') }
 
   describe '#call' do
     before do
-      allow(SidekiqHero.configuration).to receive(:notifier_server_message_class) { notifier }
+      allow_any_instance_of(described_class).to receive(:raise) { error_message }
+      allow(SidekiqHero::Recorder).to receive(:new) { recorder }
+      allow(recorder).to receive(:worker_passed)
+      allow(recorder).to receive(:worker_succeeded)
+      allow(recorder).to receive(:worker_failed).with(RuntimeError)
+      allow(recorder).to receive(:worker_ended)
+      allow(recorder).to receive(:elapsed_time)
+      allow(recorder).to receive(:meta_data) { meta_data_test }
+      allow(SidekiqHero::NotifierWrapper).to receive(:new).with(job: job, meta_data: meta_data_test) { notifier }
+      allow(notifier).to receive(:call)
     end
 
     context 'when job succeed' do
-      context 'when does not exceed maximum time' do
-        let(:expectation) do
-          {
-            status: 'success',
-            started_at: Timecop.freeze(Time.new(2019, 1, 1, 10, 0, 0).utc),
-            ended_at: Time.new(2019, 1, 1, 10, 0, 1).utc,
-            total_time: 1
-          }
-        end
+      subject { described_class.new.call(nil, job, nil) { true } }
 
-        before do
-          allow(SidekiqHero.configuration).to receive(:exceed_maximum_time) { 2 }
-          allow(notifier).to receive(:notify).with(job, expectation)
-        end
+      it 'calls all the messages on recorder' do
+        subject
 
-        it 'does not notify' do
-          described_class.new.call(nil, job, nil) { Timecop.travel(Time.new(2019, 1, 1, 10, 0, 1).utc) }
-
-          expect(notifier).not_to have_received(:notify)
-        end
+        expect(recorder).to have_received(:worker_passed)
+        expect(recorder).to have_received(:worker_succeeded)
+        expect(recorder).to have_received(:worker_ended)
+        expect(recorder).to have_received(:elapsed_time)
+        expect(recorder).to have_received(:meta_data)
+        expect(SidekiqHero::NotifierWrapper).to have_received(:new).with(job: job, meta_data: meta_data_test)
+        expect(notifier).to have_received(:call)
       end
 
-      context 'when exceed maximum time' do
-        let(:expectation) do
-          {
-            status: 'success',
-            started_at: Timecop.freeze(Time.new(2019, 1, 1, 10, 0, 0).utc),
-            ended_at: Time.new(2019, 1, 1, 10, 0, 3).utc,
-            total_time: 3
-          }
-        end
-        let(:exceed_maximum_time) { 2 }
+      it 'does not call work failed' do
+        subject
 
-        before do
-          allow(SidekiqHero.configuration).to receive(:exceed_maximum_time) { exceed_maximum_time }
-          allow(notifier).to receive(:notify).with(job, expectation)
-        end
-
-        it 'prepares and compute the message for the notifier' do
-          described_class.new.call(nil, job, nil) { Timecop.travel(Time.new(2019, 1, 1, 10, 0, 3).utc) }
-
-          expect(notifier).to have_received(:notify).with(job, expectation)
-        end
+        expect(recorder).not_to have_received(:worker_failed)
       end
     end
 
-    context 'when exceed maximum time is not set' do
-      let(:expectation) do
-        {
-          status: 'success',
-          started_at: Timecop.freeze(Time.new(2019, 1, 1, 10, 0, 0).utc),
-          ended_at: Time.new(2019, 1, 1, 10, 0, 1).utc,
-          total_time: 1
-        }
+    context 'when job fails' do
+      subject { described_class.new.call(nil, job, nil) { raise error_message } }
+
+      it 'calls all the messages on recorder' do
+        subject
+
+        expect(recorder).to have_received(:worker_passed)
+        expect(recorder).to have_received(:worker_failed).with(error_message)
+        expect(recorder).to have_received(:worker_ended)
+        expect(recorder).to have_received(:elapsed_time)
+        expect(recorder).to have_received(:meta_data)
+        expect(SidekiqHero::NotifierWrapper).to have_received(:new).with(job: job, meta_data: meta_data_test)
+        expect(notifier).to have_received(:call)
       end
 
-      before do
-        allow(notifier).to receive(:notify).with(job, expectation)
-      end
+      it 'does not call work succeeded' do
+        subject
 
-      it 'always prepare and compute the message for the notifier' do
-        described_class.new.call(nil, job, nil) { Timecop.travel(Time.new(2019, 1, 1, 10, 0, 1).utc) }
-
-        expect(notifier).to have_received(:notify).with(job, expectation)
-      end
-    end
-
-    context 'when job fail' do
-      let(:expectation) do
-        {
-          status: 'failed',
-          started_at: Timecop.freeze(Time.new(2019, 1, 1, 10, 0, 0).utc),
-          ended_at: Time.new(2019, 1, 1, 10, 0, 1).utc,
-          total_time: 1,
-          error: RuntimeError.new('error').to_s
-        }
-      end
-
-      before do
-        allow_any_instance_of(described_class).to receive(:raise) { RuntimeError.new('error').to_s }
-        allow(notifier).to receive(:notify).with(job, expectation)
-      end
-
-      it 'prepares and compute the error message for the notifier' do
-        described_class.new.call(nil, job, nil) do
-          Timecop.travel(Time.new(2019, 1, 1, 10, 0, 1).utc)
-          raise 'error'
-        end
-
-        expect(notifier).to have_received(:notify).with(job, expectation)
+        expect(recorder).not_to have_received(:worker_succeeded)
       end
     end
   end
