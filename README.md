@@ -1,6 +1,10 @@
 # SidekiqHero
 
-Sidekiq middleware that notify a recipient when a job fail or takes a configurable excessive time to process.
+Sidekiq middleware that fire a notification when a flagged worker has ended its job, successful or not.
+A worker can be flagged to always fire a notification or to fire it only when the process exceed a configured time.
+
+The default notifier just log on sidekiq server. You can configure your notification class which will receive all the metadata the job has recorder i.e. exceeded_max_time, failed.
+
 ## Installation
 
 Add this line to your application's Gemfile:
@@ -28,32 +32,44 @@ Sidekiq.configure_server do |config|
 end
 
 SidekiqHero.configure do |config|
-  config.notifier_server_message_class = YourNotifier.new
-  config.exceed_maximum_time = time_in_seconds
+  config.notifier_class = YourNotifier
+  config.queues = ['queue1', 'queue2']
 end
 ```
-`@notifier_server_message_class` is where you can add an instance of a class responsible to notify the job message.
+You can pass your sidekiq_hero configuration via `sidekiq_options`. SidekiqHero will look for `sidekiq_hero_monitor_time` and `sidekiq_hero_monitor`.
+
+`sidekiq_hero_monitor` boolean value to flag a single worker to be monitored. This worker will always trigger a notification when the job is done, successful or not.
+
+`@sidekiq_hero_monitor_time` is the time in seconds within the job is considered ok. If the job takes more than this time the notifier is triggered. The meta_data will contains `total_time` and `worker_time_out` which can be true or false.
+
+In SidekiqHero.configure:
+`@notifier_class` is where you can add your custom class responsible to notify the job message.
 The default class of sidekiq_hero just log to STDOUT so you need to implement a class that respond to `.notify`
 and takes two arguments: job, meta_data
 
-`exceed_maximum_time` is the time in seconds within which the job is conidered ok. If the job takes more than @exceed_maximum_time the notifier is triggered
+`@queues` you can flag a whole queue to be monitored.
+
+`sidekiq_hero_monitor` always takes precendece over other configuration.
+
+Sidekiq will look first to `sidekiq_hero_monitor`, then to the `queues` and finally `sidekiq_hero_monitor_time`. Note that the execution time is always recorded and passed via meta_data to the configured notifier.
 
 ```ruby
-
 class DummyNotifier
   def self.notify(job, meta_data)
     new.notify(job, meta_data)
   end
 
   # job { 'class': 'SomeWorker', 'jid': 'b4a577edbccf1d805744efa9', 'args': [1, 'arg', true], 'created_at': 123_456_789_0, 'enqueued_at': 123_456_789_0 }
-  # meta_data { status: 'success', started_at: Timecop.freeze(Time.new(2019, 1, 1, 10, 0, 0).utc), ended_at: Time.new(2019, 1, 1, 10, 0, 1).utc, total_time: 1 }
+  # meta_data { status: 'success', total_time: 1, worker_time_out: false}
   def notify(job, meta_data)
-    # your code to notify e.g. slack, email, logger
+    send_email if meta_data['status'] == 'success'
+    request_help if meta_data['status'] == 'failed'
+    notify_slack(total_time) if meta_data['worker_time_out']
   end
 end
 ```
 
-    
+
 ## Development
 
 After checking out the repo run `rake spec` to run the tests.
