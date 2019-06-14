@@ -5,12 +5,14 @@ require 'sidekiq_hero/version'
 Gem::Specification.new do |spec|
   spec.name          = 'sidekiq_hero'
   spec.version       = SidekiqHero::VERSION
-  spec.authors       = ['Samuel']
-  spec.email         = ['samueljmartini@gmail.com']
+  spec.authors       = ['Samuel Martini']
+  spec.email         = ['samuelmartini@nebulab.it']
 
-  spec.summary       = ''
-  spec.description   = ''
-  spec.homepage      = ''
+  spec.summary       = %q{Sidekiq Middleware for job notification}
+  spec.description   = <<-TEXT
+    Sidekiq middleware that fire a notification when a flagged worker has ended its job, successful or not.
+  TEXT
+  spec.homepage      = 'https://github.com/SamuelMartini/sidekiq_hero'
   spec.license       = 'MIT'
 
   spec.files         = `git ls-files -z`.split("\x0").reject do |f|
