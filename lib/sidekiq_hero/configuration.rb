@@ -2,12 +2,11 @@
 
 module SidekiqHero
   class Configuration
-    attr_accessor :notifier_server_message_class, :exceed_maximum_time
+    attr_accessor :notifier_class, :exceed_max_time, :queues
 
     def initialize
-      @notifier_server_message_class = SidekiqHero::Notifier.new
-      @exceed_maximum_time = 0
+      @notifier_class = SidekiqHero::Notifier
+      @queues = []
     end
   end
 end
-

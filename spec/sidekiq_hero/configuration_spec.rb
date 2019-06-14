@@ -5,8 +5,8 @@ RSpec.describe SidekiqHero::Configuration do
     subject { described_class.new }
 
     it 'assignes default configuration' do
-      expect(subject.notifier_server_message_class).to be_kind_of SidekiqHero::Notifier
-      expect(subject.exceed_maximum_time).to eq 0
+      expect(subject.notifier_class).to eq SidekiqHero::Notifier
+      expect(subject.queues).to be_empty
     end
   end
 end
