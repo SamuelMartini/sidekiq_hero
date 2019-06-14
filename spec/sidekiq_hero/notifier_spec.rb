@@ -14,7 +14,7 @@ RSpec.describe SidekiqHero::Notifier do
     end
 
     it 'calls `notify` on instance of self' do
-      described_class.notify(job, meta_data)
+      described_class.new.notify(job, meta_data)
 
       expect(notifier).to have_received(:notify).with(job, meta_data)
     end
